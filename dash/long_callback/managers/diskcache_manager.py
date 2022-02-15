@@ -1,3 +1,4 @@
+from diskcache import Cache
 from . import BaseLongCallbackManager
 
 _pending_value = "__$pending__"
@@ -45,6 +46,7 @@ DiskcacheLongCallbackManager requires extra dependencies which can be installed 
             self.handle = cache
 
         super().__init__(cache_by)
+        self.cache_dir = self.handle.directory()
         self.expire = expire
 
     def terminate_job(self, job):
@@ -94,7 +96,7 @@ DiskcacheLongCallbackManager requires extra dependencies which can be installed 
         return False
 
     def make_job_fn(self, fn, progress, args_deps):
-        return _make_job_fn(fn, self.handle, progress, args_deps)
+        return _make_job_fn(fn, self.cache_dir, progress, args_deps)
 
     def clear_cache_entry(self, key):
         self.handle.delete(key)
@@ -134,8 +136,10 @@ DiskcacheLongCallbackManager requires extra dependencies which can be installed 
         return result
 
 
-def _make_job_fn(fn, cache, progress, args_deps):
+def _make_job_fn(fn, cache_dir, progress, args_deps):
     def job_fn(result_key, progress_key, user_callback_args):
+        cache = Cache(cache_dir)
+
         def _set_progress(progress_value):
             cache.set(progress_key, progress_value)
 
@@ -147,5 +151,6 @@ def _make_job_fn(fn, cache, progress, args_deps):
         else:
             user_callback_output = fn(*maybe_progress, user_callback_args)
         cache.set(result_key, user_callback_output)
+        cache.close()
 
     return job_fn
